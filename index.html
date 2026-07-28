@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Turnaround Estimator</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Internal tool</p>
+          <h1>Turnaround Estimator</h1>
+        </div>
+        <p class="header-note">Forward-plan production and delivery dates from four inputs.</p>
+      </header>
+
+      <section class="tool-layout" aria-label="Turnaround estimate controls and result">
+        <form id="estimate-form" class="controls">
+          <div class="field">
+            <label for="domain">Domain</label>
+            <select id="domain" name="domain"></select>
+          </div>
+
+          <div class="field">
+            <label for="order-date">Order date</label>
+            <input id="order-date" name="order-date" type="date" required>
+          </div>
+
+          <div class="field">
+            <label for="production-days">Production days</label>
+            <input id="production-days" name="production-days" type="number" min="1" step="1" inputmode="numeric" value="1" required>
+          </div>
+
+          <div class="field">
+            <label for="shipping-method">Shipping method</label>
+            <select id="shipping-method" name="shipping-method"></select>
+          </div>
+        </form>
+
+        <section class="result-panel" aria-labelledby="result-heading">
+          <p class="eyebrow">Expected delivery</p>
+          <h2 id="result-heading">Enter order details</h2>
+          <p id="result-detail" class="result-detail" aria-live="polite">The projection updates as inputs change.</p>
+          <p id="config-note" class="config-note" hidden></p>
+        </section>
+      </section>
+
+      <section class="legend" aria-label="Calendar legend">
+        <span class="legend-item legend-order">Order placed</span>
+        <span class="legend-item legend-production">Production</span>
+        <span class="legend-item legend-transit">Transit</span>
+        <span class="legend-item legend-delivery">Expected delivery</span>
+      </section>
+
+      <section id="calendar" class="calendar-region" aria-label="Projection calendar"></section>
+    </main>
+
+    <script src="src/date-utils.js"></script>
+    <script src="src/us-holidays.js"></script>
+    <script src="src/estimator.js"></script>
+    <script src="src/domain-config.js"></script>
+    <script src="src/calendar.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>
