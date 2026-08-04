@@ -38,11 +38,11 @@
       });
     });
 
-    estimate.transitDates.forEach(function (date) {
+    estimate.transitDates.forEach(function (date, index) {
       pushMarker(markers, date, {
         type: "transit",
-        label: "Transit",
-        accessibleLabel: "Transit"
+        label: "Transit " + (index + 1),
+        accessibleLabel: "Transit day " + (index + 1)
       });
     });
 
@@ -53,15 +53,15 @@
         accessibleLabel: "Expected delivery"
       });
     } else {
-      pushMarker(markers, estimate.expectedDeliveryStartDate, {
-        type: "delivery",
-        label: "Earliest delivery",
-        accessibleLabel: "Expected delivery range begins"
-      });
-      pushMarker(markers, estimate.expectedDeliveryEndDate, {
-        type: "delivery",
-        label: "Latest delivery",
-        accessibleLabel: "Expected delivery range ends"
+      dateUtils.eachDateInclusive(estimate.expectedDeliveryStartDate, estimate.expectedDeliveryEndDate).forEach(function (date) {
+        var isStart = date === estimate.expectedDeliveryStartDate;
+        var isEnd = date === estimate.expectedDeliveryEndDate;
+        pushMarker(markers, date, {
+          type: "delivery",
+          label: isStart ? "Earliest delivery" : isEnd ? "Latest delivery" : "Expected delivery",
+          accessibleLabel: isStart ? "Expected delivery range begins" : isEnd ? "Expected delivery range ends" : "Expected delivery range",
+          rangePosition: isStart ? "start" : isEnd ? "end" : "inside"
+        });
       });
     }
 
@@ -82,10 +82,30 @@
     return {
       activeTypes: activeTypes,
       primaryLabel: primaryMarker ? primaryMarker.label : "",
+      shortLabel: primaryMarker ? shortStatusLabel(primaryMarker.label) : "",
       accessibleLabel: markers.map(function (marker) {
         return marker.accessibleLabel;
       }).join(", ")
     };
+  }
+
+  function shortStatusLabel(label) {
+    if (label === "Order placed") {
+      return "Order";
+    }
+    if (label === "Production") {
+      return "Prod";
+    }
+    if (label === "Expected delivery") {
+      return "Expected";
+    }
+    if (label === "Earliest delivery") {
+      return "Earliest";
+    }
+    if (label === "Latest delivery") {
+      return "Latest";
+    }
+    return label;
   }
 
   function buildSkippedDayMap(estimate) {
@@ -200,9 +220,15 @@
         markerSummary.activeTypes.forEach(function (type) {
           day.classList.add("state-" + type);
         });
+        markers.forEach(function (marker) {
+          if (marker.type === "delivery" && marker.rangePosition) {
+            day.classList.add("delivery-range-" + marker.rangePosition);
+          }
+        });
         day.setAttribute("aria-label", isoDate + ": " + markerSummary.accessibleLabel);
         primaryLabel.className = "day-primary-label";
         primaryLabel.textContent = markerSummary.primaryLabel;
+        primaryLabel.setAttribute("data-short-label", markerSummary.shortLabel);
         day.appendChild(primaryLabel);
       }
 
@@ -210,6 +236,7 @@
         var queue = documentRef.createElement("span");
         queue.className = "queue-note";
         queue.textContent = "Queues for shipment";
+        queue.setAttribute("data-short-label", "Queues");
         day.appendChild(queue);
       }
 
@@ -256,6 +283,7 @@
     holidayMessage: holidayMessage,
     monthSequence: monthSequence,
     renderCalendar: renderCalendar,
+    shortStatusLabel: shortStatusLabel,
     summarizeDateMarkers: summarizeDateMarkers
   };
 });

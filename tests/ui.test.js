@@ -143,14 +143,48 @@ test("calendar uses calculation-result stages instead of recalculating shipping 
     orderDate: "2026-08-10",
     productionDates: ["2026-08-11"],
     queueForShipmentDate: "2026-08-11",
-    transitDates: ["2026-08-12"],
-    expectedDeliveryDate: "2026-08-13"
+    transitDates: ["2026-08-12", "2026-08-13"],
+    expectedDeliveryDate: "2026-08-14"
   });
 
   assert.deepEqual(markerMap["2026-08-11"].map((marker) => marker.type), ["production"]);
   assert.deepEqual(markerMap["2026-08-12"].map((marker) => marker.type), ["transit"]);
-  assert.deepEqual(markerMap["2026-08-13"].map((marker) => marker.type), ["delivery"]);
+  assert.deepEqual(markerMap["2026-08-13"].map((marker) => marker.label), ["Transit 2"]);
+  assert.deepEqual(markerMap["2026-08-14"].map((marker) => marker.type), ["delivery"]);
   assert.equal(/transitDays|shippingMethods|business day/i.test(calendarSource), false);
+});
+
+test("expected-delivery range uses one shared delivery concept across all inclusive dates", () => {
+  const markerMap = calendar.buildMarkerMap({
+    orderDate: "2026-08-10",
+    productionDates: ["2026-08-11"],
+    queueForShipmentDate: "2026-08-11",
+    transitDates: ["2026-08-12"],
+    expectedDeliveryDate: null,
+    expectedDeliveryStartDate: "2026-08-13",
+    expectedDeliveryEndDate: "2026-08-15"
+  });
+
+  assert.equal(markerMap["2026-08-13"][0].label, "Earliest delivery");
+  assert.equal(markerMap["2026-08-13"][0].rangePosition, "start");
+  assert.equal(markerMap["2026-08-14"][0].label, "Expected delivery");
+  assert.equal(markerMap["2026-08-14"][0].rangePosition, "inside");
+  assert.equal(markerMap["2026-08-15"][0].label, "Latest delivery");
+  assert.equal(markerMap["2026-08-15"][0].rangePosition, "end");
+});
+
+test("final production day retains production as primary state and queue indication", () => {
+  const markerMap = calendar.buildMarkerMap({
+    orderDate: "2026-08-10",
+    productionDates: ["2026-08-11", "2026-08-12"],
+    queueForShipmentDate: "2026-08-12",
+    transitDates: ["2026-08-13"],
+    expectedDeliveryDate: "2026-08-14"
+  });
+
+  const summary = calendar.summarizeDateMarkers(markerMap["2026-08-12"]);
+  assert.equal(summary.primaryLabel, "Production");
+  assert.match(summary.accessibleLabel, /queues for shipment/);
 });
 
 test("calendar marker summary produces one concise primary label", () => {
@@ -161,6 +195,15 @@ test("calendar marker summary produces one concise primary label", () => {
 
   assert.equal(summary.primaryLabel, "Expected delivery");
   assert.deepEqual(summary.activeTypes, ["production", "delivery"]);
+});
+
+test("calendar exposes responsive short labels without replacing accessible labels", () => {
+  assert.equal(calendar.shortStatusLabel("Order placed"), "Order");
+  assert.equal(calendar.shortStatusLabel("Production"), "Prod");
+  assert.equal(calendar.shortStatusLabel("Earliest delivery"), "Earliest");
+  assert.equal(calendar.shortStatusLabel("Expected delivery"), "Expected");
+  assert.equal(calendar.shortStatusLabel("Latest delivery"), "Latest");
+  assert.match(calendarSource, /data-short-label/);
 });
 
 test("four-item legend contains only approved concepts", () => {
@@ -196,6 +239,22 @@ test("holiday information identifies skipped stage and is keyboard accessible", 
   assert.match(calendarSource, /aria-label/);
   assert.match(calendarSource, /data-tooltip/);
   assert.match(stylesSource, /\.info-button:focus-visible::after/);
+});
+
+test("CSS exposes approved visual tokens and avoids gradients or badge status classes", () => {
+  assert.match(stylesSource, /--order-bg:\s*#e5e7eb/i);
+  assert.match(stylesSource, /--production-bg:\s*#dbeafe/i);
+  assert.match(stylesSource, /--transit-bg:\s*#ede9fe/i);
+  assert.match(stylesSource, /--delivery-accent:\s*#00c000/i);
+  assert.doesNotMatch(stylesSource, /gradient/i);
+  assert.doesNotMatch(stylesSource, /\.tag\b/);
+});
+
+test("delivery bounds are distinguishable without extra legend categories", () => {
+  assert.match(stylesSource, /\.delivery-range-start/);
+  assert.match(stylesSource, /\.delivery-range-inside/);
+  assert.match(stylesSource, /\.delivery-range-end/);
+  assert.doesNotMatch(indexHtml, /Earliest delivery<\/span>|Latest delivery<\/span>/);
 });
 
 test("UI contains no hardcoded domain or shipping datasets outside configuration", () => {
