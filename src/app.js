@@ -98,21 +98,50 @@
     elements.shippingMethodSelect.addEventListener("change", callbacks.onRecalculate);
   }
 
+  function formatLongDisplayDate(isoDate) {
+    var parts = dateUtils.parseIsoDate(isoDate);
+    return new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(new Date(Date.UTC(parts.year, parts.month - 1, parts.day)));
+  }
+
   function formatEstimateHeading(estimate) {
     if (estimate.expectedDeliveryDate) {
-      return dateUtils.formatDisplayDate(estimate.expectedDeliveryDate);
+      return formatLongDisplayDate(estimate.expectedDeliveryDate);
     }
 
-    return dateUtils.formatDisplayDate(estimate.expectedDeliveryStartDate) +
-      " to " +
-      dateUtils.formatDisplayDate(estimate.expectedDeliveryEndDate);
+    return formatLongDisplayDate(estimate.expectedDeliveryStartDate) +
+      " - " +
+      formatLongDisplayDate(estimate.expectedDeliveryEndDate);
   }
 
   function formatEstimateDetail(estimate) {
     return [
-      "Queue for Shipment: " + dateUtils.formatDisplayDate(estimate.queueForShipmentDate),
-      "Method: " + estimate.shippingMethodLabel
+      "Domain: " + estimate.domainLabel,
+      "Method: " + estimate.shippingMethodLabel,
+      "Queue for Shipment: " + formatLongDisplayDate(estimate.queueForShipmentDate) + " (final production day)"
     ].join(" | ");
+  }
+
+  function setProductionDaysError(elements, message) {
+    if (!elements.productionDaysError) {
+      return;
+    }
+
+    if (message) {
+      elements.productionDaysInput.setAttribute("aria-invalid", "true");
+      elements.productionDaysError.hidden = false;
+      elements.productionDaysError.textContent = message;
+      return;
+    }
+
+    elements.productionDaysInput.removeAttribute("aria-invalid");
+    elements.productionDaysError.hidden = true;
+    elements.productionDaysError.textContent = "";
   }
 
   function readEstimateInput(elements, appConfig) {
@@ -132,6 +161,7 @@
       domainSelect: documentRef.getElementById("domain"),
       orderDateInput: documentRef.getElementById("order-date"),
       productionDaysInput: documentRef.getElementById("production-days"),
+      productionDaysError: documentRef.getElementById("production-days-error"),
       shippingMethodSelect: documentRef.getElementById("shipping-method"),
       resultPanel: documentRef.querySelector(".result-panel"),
       resultHeading: documentRef.getElementById("result-heading"),
@@ -167,6 +197,7 @@
       elements.resultPanel.classList.add("is-error");
       elements.resultHeading.textContent = "Unable to estimate";
       elements.resultDetail.textContent = error.message;
+      setProductionDaysError(elements, /^Production days/.test(error.message) ? error.message : "");
       calendar.renderCalendar(elements.calendarRegion, null);
     }
 
@@ -174,6 +205,7 @@
       try {
         var estimate = estimator.calculateEstimate(readEstimateInput(elements, appConfig));
         elements.resultPanel.classList.remove("is-error");
+        setProductionDaysError(elements, "");
         elements.resultHeading.textContent = formatEstimateHeading(estimate);
         elements.resultDetail.textContent = formatEstimateDetail(estimate);
         calendar.renderCalendar(elements.calendarRegion, estimate);
@@ -217,10 +249,12 @@
     findShippingMethod: findShippingMethod,
     formatEstimateDetail: formatEstimateDetail,
     formatEstimateHeading: formatEstimateHeading,
+    formatLongDisplayDate: formatLongDisplayDate,
     getDomainChoices: getDomainChoices,
     getShippingMethodChoices: getShippingMethodChoices,
     initBrowserApp: initBrowserApp,
     readEstimateInput: readEstimateInput,
+    setProductionDaysError: setProductionDaysError,
     replaceSelectOptions: replaceSelectOptions
   };
 });

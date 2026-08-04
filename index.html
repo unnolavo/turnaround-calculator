@@ -18,31 +18,32 @@
 
       <section class="tool-layout" aria-label="Turnaround estimate controls and result">
         <form id="estimate-form" class="controls">
-          <div class="field">
+          <div class="field" data-form-row="1">
             <label for="domain">Domain</label>
             <select id="domain" name="domain"></select>
           </div>
 
-          <div class="field">
+          <div class="field" data-form-row="1">
             <label for="order-date">Order date</label>
             <input id="order-date" name="order-date" type="date" required>
           </div>
 
-          <div class="field">
+          <div class="field" data-form-row="2">
             <label for="production-days">Production days</label>
-            <input id="production-days" name="production-days" type="number" min="1" step="1" inputmode="numeric" value="1" required>
+            <input id="production-days" name="production-days" type="number" min="1" step="1" inputmode="numeric" value="1" required aria-describedby="production-days-error">
+            <p id="production-days-error" class="field-error" hidden></p>
           </div>
 
-          <div class="field">
+          <div class="field" data-form-row="2">
             <label for="shipping-method">Shipping method</label>
             <select id="shipping-method" name="shipping-method"></select>
           </div>
         </form>
 
-        <section class="result-panel" aria-labelledby="result-heading">
+        <section class="result-panel" aria-labelledby="result-heading" aria-live="polite">
           <p class="eyebrow">Expected delivery</p>
           <h2 id="result-heading">Enter order details</h2>
-          <p id="result-detail" class="result-detail" aria-live="polite">The projection updates as inputs change.</p>
+          <p id="result-detail" class="result-detail">The projection updates as inputs change.</p>
           <p id="config-note" class="config-note" hidden></p>
         </section>
       </section>

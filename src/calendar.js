@@ -26,22 +26,22 @@
 
     pushMarker(markers, estimate.orderDate, {
       type: "order",
-      label: "O",
+      label: "Order placed",
       accessibleLabel: "Order placed"
     });
 
     estimate.productionDates.forEach(function (date) {
       pushMarker(markers, date, {
         type: "production",
-        label: "P",
-        accessibleLabel: "Production"
+        label: "Production",
+        accessibleLabel: date === estimate.queueForShipmentDate ? "Production, final production day, queues for shipment" : "Production"
       });
     });
 
     estimate.transitDates.forEach(function (date) {
       pushMarker(markers, date, {
         type: "transit",
-        label: "T",
+        label: "Transit",
         accessibleLabel: "Transit"
       });
     });
@@ -49,23 +49,43 @@
     if (estimate.expectedDeliveryDate) {
       pushMarker(markers, estimate.expectedDeliveryDate, {
         type: "delivery",
-        label: "E",
+        label: "Expected delivery",
         accessibleLabel: "Expected delivery"
       });
     } else {
       pushMarker(markers, estimate.expectedDeliveryStartDate, {
         type: "delivery",
-        label: "E",
+        label: "Earliest delivery",
         accessibleLabel: "Expected delivery range begins"
       });
       pushMarker(markers, estimate.expectedDeliveryEndDate, {
         type: "delivery",
-        label: "E",
+        label: "Latest delivery",
         accessibleLabel: "Expected delivery range ends"
       });
     }
 
     return markers;
+  }
+
+  function summarizeDateMarkers(markers) {
+    var priority = ["delivery", "order", "production", "transit"];
+    var activeTypes = markers.map(function (marker) {
+      return marker.type;
+    });
+    var primaryMarker = priority.map(function (type) {
+      return markers.find(function (marker) {
+        return marker.type === type;
+      });
+    }).find(Boolean);
+
+    return {
+      activeTypes: activeTypes,
+      primaryLabel: primaryMarker ? primaryMarker.label : "",
+      accessibleLabel: markers.map(function (marker) {
+        return marker.accessibleLabel;
+      }).join(", ")
+    };
   }
 
   function buildSkippedDayMap(estimate) {
@@ -111,21 +131,13 @@
     }
   }
 
-  function createTag(documentRef, marker) {
-    var tag = documentRef.createElement("span");
-    tag.className = "tag tag-" + marker.type;
-    tag.textContent = marker.label;
-    tag.setAttribute("aria-label", marker.accessibleLabel);
-    return tag;
-  }
-
   function holidayMessage(skippedItems) {
     var stages = skippedItems.map(function (item) {
       return item.stage;
     });
     var uniqueStages = Array.from(new Set(stages));
     var holiday = skippedItems[0].reason.holiday;
-    var stageText = uniqueStages.join(" and ");
+    var stageText = uniqueStages.length > 1 ? "production and transit" : uniqueStages[0];
     return skippedItems[0].reason.holidayName + " skipped " + stageText + ". Observed date: " + holiday.observedDate + ".";
   }
 
@@ -167,30 +179,37 @@
         day: dayNumber
       });
       var number = documentRef.createElement("span");
-      var tags = documentRef.createElement("div");
+      var primaryLabel = documentRef.createElement("span");
       var markers = markerMap[isoDate] || [];
       var skippedItems = skippedDayMap[isoDate];
+      var markerSummary = markers.length ? summarizeDateMarkers(markers) : null;
 
       day.setAttribute("data-date", isoDate);
       if (dateUtils.isWeekend(isoDate)) {
         day.classList.add("is-weekend");
       }
+      if (skippedItems && skippedItems.length) {
+        day.classList.add("is-skipped-holiday");
+      }
 
       number.className = "day-number";
       number.textContent = String(dayNumber);
-      tags.className = "day-tags";
-
-      markers.forEach(function (marker) {
-        tags.appendChild(createTag(documentRef, marker));
-      });
 
       day.appendChild(number);
-      day.appendChild(tags);
+      if (markerSummary) {
+        markerSummary.activeTypes.forEach(function (type) {
+          day.classList.add("state-" + type);
+        });
+        day.setAttribute("aria-label", isoDate + ": " + markerSummary.accessibleLabel);
+        primaryLabel.className = "day-primary-label";
+        primaryLabel.textContent = markerSummary.primaryLabel;
+        day.appendChild(primaryLabel);
+      }
 
       if (isoDate === container._queueForShipmentDate) {
         var queue = documentRef.createElement("span");
         queue.className = "queue-note";
-        queue.textContent = "Queue";
+        queue.textContent = "Queues for shipment";
         day.appendChild(queue);
       }
 
@@ -234,7 +253,9 @@
   return {
     buildMarkerMap: buildMarkerMap,
     buildSkippedDayMap: buildSkippedDayMap,
+    holidayMessage: holidayMessage,
     monthSequence: monthSequence,
-    renderCalendar: renderCalendar
+    renderCalendar: renderCalendar,
+    summarizeDateMarkers: summarizeDateMarkers
   };
 });
