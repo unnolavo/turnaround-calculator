@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const estimator = require("../src/estimator");
 const holidays = require("../src/us-holidays");
+const config = require("../src/domain-config");
 
 const usDomain = {
   id: "us",
@@ -249,4 +250,61 @@ test("date-only calculations remain stable regardless of Node timezone", () => {
   }).trim());
 
   assert.equal(new Set(outputs).size, 1);
+});
+
+test("representative international range from real configuration integrates with estimator", () => {
+  const ca = config.domains.find((domain) => domain.id === "ca");
+  const standard = ca.shippingMethods.find((method) => method.label === "Standard with tracking");
+  const result = estimator.calculateEstimate({
+    orderDate: "2026-07-01",
+    productionDays: 1,
+    domain: ca,
+    shippingMethod: standard
+  });
+
+  assert.equal(result.queueForShipmentDate, "2026-07-02");
+  assert.equal(result.expectedDeliveryStartDate, "2026-07-09");
+  assert.equal(result.expectedDeliveryEndDate, "2026-07-14");
+});
+
+test("real US Saturday method counts eligible Saturday while ordinary Standard Shipping skips it", () => {
+  const us = config.domains.find((domain) => domain.id === "us");
+  const standard = us.shippingMethods.find((method) => method.label === "Standard Shipping");
+  const saturday = us.shippingMethods.find((method) => method.label === "Standard Shipping (with Saturday Delivery)");
+  const input = {
+    orderDate: "2026-07-06",
+    productionDays: 1,
+    domain: us
+  };
+
+  const standardResult = estimator.calculateEstimate(Object.assign({}, input, { shippingMethod: standard }));
+  const saturdayResult = estimator.calculateEstimate(Object.assign({}, input, { shippingMethod: saturday }));
+
+  assert.equal(standardResult.queueForShipmentDate, "2026-07-07");
+  assert.equal(standardResult.expectedDeliveryStartDate, "2026-07-13");
+  assert.equal(saturdayResult.expectedDeliveryStartDate, "2026-07-11");
+});
+
+test("real US transit skips observed federal holiday while international transit does not", () => {
+  const us = config.domains.find((domain) => domain.id === "us");
+  const ca = config.domains.find((domain) => domain.id === "ca");
+  const express = us.shippingMethods.find((method) => method.label === "Express Shipping");
+  const caStandard = ca.shippingMethods.find((method) => method.label === "Standard with tracking");
+
+  const usResult = estimator.calculateEstimate({
+    orderDate: "2026-07-01",
+    productionDays: 1,
+    domain: us,
+    shippingMethod: express
+  });
+  const internationalResult = estimator.calculateEstimate({
+    orderDate: "2026-07-01",
+    productionDays: 1,
+    domain: ca,
+    shippingMethod: caStandard
+  });
+
+  assert.equal(usResult.queueForShipmentDate, "2026-07-02");
+  assert.equal(usResult.expectedDeliveryDate, "2026-07-06");
+  assert.equal(internationalResult.transitDates.includes("2026-07-03"), true);
 });
