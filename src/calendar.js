@@ -30,10 +30,12 @@
       accessibleLabel: "Order placed"
     });
 
-    estimate.productionDates.forEach(function (date) {
+    estimate.productionDates.forEach(function (date, index) {
+      var isFirstProductionDay = index === 0;
+      var isFinalProductionDay = date === estimate.queueForShipmentDate;
       pushMarker(markers, date, {
         type: "production",
-        label: "Production",
+        label: isFirstProductionDay || isFinalProductionDay ? "Production" : "",
         accessibleLabel: date === estimate.queueForShipmentDate ? "Production, final production day, queues for shipment" : "Production"
       });
     });
@@ -41,7 +43,7 @@
     estimate.transitDates.forEach(function (date, index) {
       pushMarker(markers, date, {
         type: "transit",
-        label: "Transit " + (index + 1),
+        label: index === 0 ? "Transit 1" : String(index + 1),
         accessibleLabel: "Transit day " + (index + 1)
       });
     });
@@ -58,7 +60,7 @@
         var isEnd = date === estimate.expectedDeliveryEndDate;
         pushMarker(markers, date, {
           type: "delivery",
-          label: isStart ? "Earliest delivery" : isEnd ? "Latest delivery" : "Expected delivery",
+          label: isStart ? "Earliest delivery" : isEnd ? "Latest delivery" : "",
           accessibleLabel: isStart ? "Expected delivery range begins" : isEnd ? "Expected delivery range ends" : "Expected delivery range",
           rangePosition: isStart ? "start" : isEnd ? "end" : "inside"
         });
@@ -226,10 +228,12 @@
           }
         });
         day.setAttribute("aria-label", isoDate + ": " + markerSummary.accessibleLabel);
-        primaryLabel.className = "day-primary-label";
-        primaryLabel.textContent = markerSummary.primaryLabel;
-        primaryLabel.setAttribute("data-short-label", markerSummary.shortLabel);
-        day.appendChild(primaryLabel);
+        if (markerSummary.primaryLabel) {
+          primaryLabel.className = "day-primary-label";
+          primaryLabel.textContent = markerSummary.primaryLabel;
+          primaryLabel.setAttribute("data-short-label", markerSummary.shortLabel);
+          day.appendChild(primaryLabel);
+        }
       }
 
       if (isoDate === container._queueForShipmentDate) {

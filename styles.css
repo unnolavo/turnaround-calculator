@@ -154,7 +154,7 @@ select:focus-visible {
   align-content: center;
   gap: var(--space-2);
   min-height: 152px;
-  border-color: var(--delivery-border);
+  border-color: var(--border);
   border-left: 8px solid var(--delivery-border);
 }
 
@@ -262,7 +262,7 @@ select:focus-visible {
 .weekday,
 .day {
   min-width: 0;
-  min-height: 88px;
+  min-height: 72px;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
@@ -325,44 +325,44 @@ select:focus-visible {
 }
 
 .state-order {
-  border-left: 5px solid var(--order-border);
+  border-left: 3px solid var(--order-border);
   background: var(--order-bg);
   color: var(--order-text);
 }
 
 .state-production {
-  border-left: 5px solid var(--production-border);
+  border-left: 3px solid var(--production-border);
   background: var(--production-bg);
   color: var(--production-text);
 }
 
 .state-transit {
-  border-left: 5px solid var(--transit-border);
+  border-left: 3px solid var(--transit-border);
   background: var(--transit-bg);
   color: var(--transit-text);
 }
 
 .state-delivery {
-  border-left: 5px solid var(--delivery-border);
+  border-left: 3px solid var(--delivery-border);
   background: var(--delivery-bg);
   color: var(--delivery-text);
-  box-shadow: inset 0 0 0 2px var(--delivery-border);
+  box-shadow: inset 0 2px 0 rgba(0, 138, 0, 0.55), inset 0 -2px 0 rgba(0, 138, 0, 0.55);
 }
 
 .delivery-range-start {
-  box-shadow: inset 4px 0 0 var(--delivery-border), inset 0 0 0 2px var(--delivery-border);
+  box-shadow: inset 4px 0 0 var(--delivery-border), inset 0 2px 0 var(--delivery-border), inset 0 -2px 0 var(--delivery-border);
 }
 
 .delivery-range-end {
-  box-shadow: inset -4px 0 0 var(--delivery-border), inset 0 0 0 2px var(--delivery-border);
+  box-shadow: inset -4px 0 0 var(--delivery-border), inset 0 2px 0 var(--delivery-border), inset 0 -2px 0 var(--delivery-border);
 }
 
 .delivery-range-inside {
-  box-shadow: inset 0 3px 0 var(--delivery-border), inset 0 -3px 0 var(--delivery-border);
+  box-shadow: inset 0 2px 0 rgba(0, 138, 0, 0.55), inset 0 -2px 0 rgba(0, 138, 0, 0.55);
 }
 
 .is-skipped-holiday {
-  border-left: 5px solid var(--holiday-border);
+  border-left: 3px solid var(--holiday-border);
   background: var(--holiday-bg);
   color: var(--holiday-text);
 }
@@ -445,7 +445,7 @@ select:focus-visible {
   }
 
   .day {
-    min-height: 72px;
+    min-height: 68px;
     padding: 5px;
     gap: 4px;
   }

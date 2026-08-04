@@ -149,7 +149,8 @@ test("calendar uses calculation-result stages instead of recalculating shipping 
 
   assert.deepEqual(markerMap["2026-08-11"].map((marker) => marker.type), ["production"]);
   assert.deepEqual(markerMap["2026-08-12"].map((marker) => marker.type), ["transit"]);
-  assert.deepEqual(markerMap["2026-08-13"].map((marker) => marker.label), ["Transit 2"]);
+  assert.deepEqual(markerMap["2026-08-13"].map((marker) => marker.label), ["2"]);
+  assert.deepEqual(markerMap["2026-08-13"].map((marker) => marker.accessibleLabel), ["Transit day 2"]);
   assert.deepEqual(markerMap["2026-08-14"].map((marker) => marker.type), ["delivery"]);
   assert.equal(/transitDays|shippingMethods|business day/i.test(calendarSource), false);
 });
@@ -167,10 +168,42 @@ test("expected-delivery range uses one shared delivery concept across all inclus
 
   assert.equal(markerMap["2026-08-13"][0].label, "Earliest delivery");
   assert.equal(markerMap["2026-08-13"][0].rangePosition, "start");
-  assert.equal(markerMap["2026-08-14"][0].label, "Expected delivery");
+  assert.equal(markerMap["2026-08-14"][0].label, "");
+  assert.equal(markerMap["2026-08-14"][0].accessibleLabel, "Expected delivery range");
   assert.equal(markerMap["2026-08-14"][0].rangePosition, "inside");
   assert.equal(markerMap["2026-08-15"][0].label, "Latest delivery");
   assert.equal(markerMap["2026-08-15"][0].rangePosition, "end");
+});
+
+test("only the first transit day visibly includes the word Transit", () => {
+  const markerMap = calendar.buildMarkerMap({
+    orderDate: "2026-08-10",
+    productionDates: ["2026-08-11"],
+    queueForShipmentDate: "2026-08-11",
+    transitDates: ["2026-08-12", "2026-08-13", "2026-08-14"],
+    expectedDeliveryDate: "2026-08-15"
+  });
+
+  assert.equal(markerMap["2026-08-12"][0].label, "Transit 1");
+  assert.equal(markerMap["2026-08-13"][0].label, "2");
+  assert.equal(markerMap["2026-08-14"][0].label, "3");
+  assert.equal(markerMap["2026-08-14"][0].accessibleLabel, "Transit day 3");
+});
+
+test("intermediate production days omit repeated visible labels", () => {
+  const markerMap = calendar.buildMarkerMap({
+    orderDate: "2026-08-10",
+    productionDates: ["2026-08-11", "2026-08-12", "2026-08-13"],
+    queueForShipmentDate: "2026-08-13",
+    transitDates: ["2026-08-14"],
+    expectedDeliveryDate: "2026-08-17"
+  });
+
+  assert.equal(markerMap["2026-08-11"][0].label, "Production");
+  assert.equal(markerMap["2026-08-12"][0].label, "");
+  assert.equal(markerMap["2026-08-12"][0].accessibleLabel, "Production");
+  assert.equal(markerMap["2026-08-13"][0].label, "Production");
+  assert.match(markerMap["2026-08-13"][0].accessibleLabel, /queues for shipment/);
 });
 
 test("final production day retains production as primary state and queue indication", () => {
@@ -185,6 +218,7 @@ test("final production day retains production as primary state and queue indicat
   const summary = calendar.summarizeDateMarkers(markerMap["2026-08-12"]);
   assert.equal(summary.primaryLabel, "Production");
   assert.match(summary.accessibleLabel, /queues for shipment/);
+  assert.match(calendarSource, /Queues for shipment/);
 });
 
 test("calendar marker summary produces one concise primary label", () => {
@@ -195,6 +229,19 @@ test("calendar marker summary produces one concise primary label", () => {
 
   assert.equal(summary.primaryLabel, "Expected delivery");
   assert.deepEqual(summary.activeTypes, ["production", "delivery"]);
+});
+
+test("fixed delivery still displays Expected delivery", () => {
+  const markerMap = calendar.buildMarkerMap({
+    orderDate: "2026-08-10",
+    productionDates: ["2026-08-11"],
+    queueForShipmentDate: "2026-08-11",
+    transitDates: ["2026-08-12"],
+    expectedDeliveryDate: "2026-08-13"
+  });
+
+  assert.equal(markerMap["2026-08-13"][0].label, "Expected delivery");
+  assert.equal(markerMap["2026-08-13"][0].accessibleLabel, "Expected delivery");
 });
 
 test("calendar exposes responsive short labels without replacing accessible labels", () => {
