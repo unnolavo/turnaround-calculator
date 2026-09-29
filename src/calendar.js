@@ -12,7 +12,11 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function (dateUtils) {
   "use strict";
 
-  var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  function mondayFirstColumn(isoDate) {
+    return (dateUtils.dayOfWeek(isoDate) + 6) % 7;
+  }
 
   function pushMarker(map, date, marker) {
     if (!map[date]) {
@@ -21,8 +25,17 @@
     map[date].push(marker);
   }
 
+  function queueLabel(estimate) {
+    return !estimate.shipmentTiming || estimate.shipmentTiming === "unknown" ? "Expected queue for shipment" : "Queued for shipment";
+  }
+
+  function queueAccessibleLabel(estimate) {
+    return !estimate.shipmentTiming || estimate.shipmentTiming === "unknown" ? "expected queue for shipment" : "queued for shipment";
+  }
+
   function buildMarkerMap(estimate) {
     var markers = {};
+    var queueText = queueAccessibleLabel(estimate);
 
     pushMarker(markers, estimate.orderDate, {
       type: "order",
@@ -31,19 +44,26 @@
     });
 
     estimate.productionDates.forEach(function (date, index) {
-      var isFirstProductionDay = index === 0;
       var isFinalProductionDay = date === estimate.queueForShipmentDate;
       pushMarker(markers, date, {
         type: "production",
-        label: isFirstProductionDay || isFinalProductionDay ? "Production" : "",
-        accessibleLabel: date === estimate.queueForShipmentDate ? "Production, final production day, queues for shipment" : "Production"
+        label: "Production " + (index + 1),
+        accessibleLabel: isFinalProductionDay ? "Production day " + (index + 1) + ", final production day, " + queueText : "Production day " + (index + 1)
       });
     });
+
+    if (estimate.pickupDate) {
+      pushMarker(markers, estimate.pickupDate, {
+        type: "pickup",
+        label: estimate.pickupType === "same-day" ? "Same Day Pick-Up" : "Next Day Pick-Up",
+        accessibleLabel: estimate.pickupType === "same-day" ? "Same Day Pick-Up" : "Next Day Pick-Up"
+      });
+    }
 
     estimate.transitDates.forEach(function (date, index) {
       pushMarker(markers, date, {
         type: "transit",
-        label: index === 0 ? "Transit 1" : String(index + 1),
+        label: "Transit " + (index + 1),
         accessibleLabel: "Transit day " + (index + 1)
       });
     });
@@ -55,13 +75,17 @@
         accessibleLabel: "Expected delivery"
       });
     } else {
-      dateUtils.eachDateInclusive(estimate.expectedDeliveryStartDate, estimate.expectedDeliveryEndDate).forEach(function (date) {
+      var deliveryDates = estimate.transitRange && estimate.transitDates ?
+        estimate.transitDates.slice(estimate.transitRange.min - 1, estimate.transitRange.max) :
+        dateUtils.eachDateInclusive(estimate.expectedDeliveryStartDate, estimate.expectedDeliveryEndDate);
+
+      deliveryDates.forEach(function (date) {
         var isStart = date === estimate.expectedDeliveryStartDate;
         var isEnd = date === estimate.expectedDeliveryEndDate;
         pushMarker(markers, date, {
           type: "delivery",
           label: isStart ? "Earliest delivery" : isEnd ? "Latest delivery" : "",
-          accessibleLabel: isStart ? "Expected delivery range begins" : isEnd ? "Expected delivery range ends" : "Expected delivery range",
+          accessibleLabel: isStart ? "Expected eligible delivery range begins" : isEnd ? "Expected eligible delivery range ends" : "Expected eligible delivery date",
           rangePosition: isStart ? "start" : isEnd ? "end" : "inside"
         });
       });
@@ -71,7 +95,7 @@
   }
 
   function summarizeDateMarkers(markers) {
-    var priority = ["delivery", "order", "production", "transit"];
+    var priority = ["delivery", "order", "production", "pickup", "transit"];
     var activeTypes = markers.map(function (marker) {
       return marker.type;
     });
@@ -80,11 +104,20 @@
         return marker.type === type;
       });
     }).find(Boolean);
+    var secondaryLabels = markers.filter(function (marker) {
+      return marker !== primaryMarker && marker.label;
+    }).map(function (marker) {
+      return {
+        label: marker.label,
+        shortLabel: shortStatusLabel(marker.label)
+      };
+    });
 
     return {
       activeTypes: activeTypes,
       primaryLabel: primaryMarker ? primaryMarker.label : "",
       shortLabel: primaryMarker ? shortStatusLabel(primaryMarker.label) : "",
+      secondaryLabels: secondaryLabels,
       accessibleLabel: markers.map(function (marker) {
         return marker.accessibleLabel;
       }).join(", ")
@@ -95,8 +128,14 @@
     if (label === "Order placed") {
       return "Order";
     }
-    if (label === "Production") {
-      return "Prod";
+    if (label.indexOf("Production ") === 0) {
+      return "Prod " + label.slice("Production ".length);
+    }
+    if (label === "Same Day Pick-Up") {
+      return "Same Day Pick-Up";
+    }
+    if (label === "Next Day Pick-Up") {
+      return "Next Day Pick-Up";
     }
     if (label === "Expected delivery") {
       return "Expected";
@@ -114,7 +153,7 @@
     var map = {};
 
     estimate.skippedDays.forEach(function (skipped) {
-      if (skipped.reason.type !== "holiday") {
+      if (skipped.reason.type === "weekend" || dateUtils.isWeekend(skipped.date)) {
         return;
       }
 
@@ -128,14 +167,13 @@
     return map;
   }
 
-  function monthSequence(startIsoDate, endIsoDate) {
+  function monthSequence(startIsoDate) {
     var start = dateUtils.parseIsoDate(startIsoDate);
-    var end = dateUtils.parseIsoDate(endIsoDate);
     var months = [];
     var year = start.year;
     var month = start.month;
 
-    while (year < end.year || (year === end.year && month <= end.month)) {
+    for (var index = 0; index < 2; index += 1) {
       months.push({ year: year, month: month });
       month += 1;
       if (month > 12) {
@@ -158,9 +196,34 @@
       return item.stage;
     });
     var uniqueStages = Array.from(new Set(stages));
-    var holiday = skippedItems[0].reason.holiday;
-    var stageText = uniqueStages.length > 1 ? "production and transit" : uniqueStages[0];
-    return skippedItems[0].reason.holidayName + " skipped " + stageText + ". Observed date: " + holiday.observedDate + ".";
+    var stageText = uniqueStages.length > 1 ? uniqueStages.slice(0, -1).join(", ") + " and " + uniqueStages[uniqueStages.length - 1] : uniqueStages[0];
+
+    if (skippedItems[0].reason.type === "holiday") {
+      var holiday = skippedItems[0].reason.holiday;
+      return skippedItems[0].reason.holidayName + " skipped " + stageText + ". Observed date: " + holiday.observedDate + ".";
+    }
+
+    return "Non-working day skipped " + stageText + ".";
+  }
+
+  function tooltipPositionForColumn(columnIndex) {
+    if (columnIndex <= 1) {
+      return "right";
+    }
+    if (columnIndex >= 5) {
+      return "left";
+    }
+    return "center";
+  }
+
+  function isInsideDeliveryWindow(estimate, isoDate) {
+    return Boolean(
+      estimate &&
+      estimate.expectedDeliveryStartDate &&
+      estimate.expectedDeliveryEndDate &&
+      dateUtils.compareIsoDates(isoDate, estimate.expectedDeliveryStartDate) >= 0 &&
+      dateUtils.compareIsoDates(isoDate, estimate.expectedDeliveryEndDate) <= 0
+    );
   }
 
   function renderMonth(container, monthInfo, markerMap, skippedDayMap) {
@@ -169,7 +232,7 @@
     var heading = documentRef.createElement("h3");
     var grid = documentRef.createElement("div");
     var firstDate = dateUtils.startOfMonth(monthInfo.year, monthInfo.month);
-    var leadingDays = dateUtils.dayOfWeek(firstDate);
+    var leadingDays = mondayFirstColumn(firstDate);
     var daysInMonth = dateUtils.daysInMonth(monthInfo.year, monthInfo.month);
     var totalCells = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
 
@@ -186,6 +249,7 @@
 
     for (var cellIndex = 0; cellIndex < totalCells; cellIndex += 1) {
       var dayNumber = cellIndex - leadingDays + 1;
+      var columnIndex = cellIndex % 7;
       var day = documentRef.createElement("div");
       day.className = "day";
 
@@ -212,6 +276,9 @@
       }
       if (skippedItems && skippedItems.length) {
         day.classList.add("is-skipped-holiday");
+        if (isInsideDeliveryWindow(container._estimate, isoDate)) {
+          day.classList.add("is-delivery-window-interruption");
+        }
       }
 
       number.className = "day-number";
@@ -227,31 +294,54 @@
             day.classList.add("delivery-range-" + marker.rangePosition);
           }
         });
-        day.setAttribute("aria-label", isoDate + ": " + markerSummary.accessibleLabel);
+        var activeDescription = markerSummary.accessibleLabel;
+        if (skippedItems && skippedItems.length) {
+          activeDescription += ", Non-Working Day, " + holidayMessage(skippedItems);
+        }
+        day.setAttribute("aria-label", isoDate + ": " + activeDescription);
+        day.setAttribute("title", activeDescription);
+        day.tabIndex = 0;
         if (markerSummary.primaryLabel) {
           primaryLabel.className = "day-primary-label";
           primaryLabel.textContent = markerSummary.primaryLabel;
           primaryLabel.setAttribute("data-short-label", markerSummary.shortLabel);
           day.appendChild(primaryLabel);
         }
+        markerSummary.secondaryLabels.forEach(function (secondaryLabel) {
+          var secondary = documentRef.createElement("span");
+          secondary.className = "day-secondary-label";
+          secondary.textContent = secondaryLabel.label;
+          secondary.setAttribute("data-short-label", secondaryLabel.shortLabel);
+          day.appendChild(secondary);
+        });
       }
 
       if (isoDate === container._queueForShipmentDate) {
         var queue = documentRef.createElement("span");
         queue.className = "queue-note";
-        queue.textContent = "Queues for shipment";
-        queue.setAttribute("data-short-label", "Queues");
+        queue.textContent = queueLabel(container._estimate);
+        queue.setAttribute("data-short-label", !container._estimate.shipmentTiming || container._estimate.shipmentTiming === "unknown" ? "Queue" : "Queued");
         day.appendChild(queue);
       }
 
       if (skippedItems && skippedItems.length) {
         var message = holidayMessage(skippedItems);
+        var nonWorking = documentRef.createElement("span");
+        nonWorking.className = "non-working-label";
+        nonWorking.textContent = "Non-Working Day";
+        day.appendChild(nonWorking);
+        if (!markerSummary) {
+          day.setAttribute("aria-label", isoDate + ": Non-Working Day, " + message);
+          day.setAttribute("title", "Non-Working Day, " + message);
+          day.tabIndex = 0;
+        }
         var button = documentRef.createElement("button");
         button.type = "button";
         button.className = "info-button";
         button.textContent = "i";
         button.title = message;
         button.setAttribute("data-tooltip", message);
+        button.setAttribute("data-tooltip-position", tooltipPositionForColumn(columnIndex));
         button.setAttribute("aria-label", message);
         day.appendChild(button);
       }
@@ -273,8 +363,9 @@
 
     var markerMap = buildMarkerMap(estimate);
     var skippedDayMap = buildSkippedDayMap(estimate);
-    var months = monthSequence(estimate.orderDate, estimate.expectedDeliveryEndDate);
+    var months = monthSequence(estimate.orderDate);
 
+    container._estimate = estimate;
     container._queueForShipmentDate = estimate.queueForShipmentDate;
     months.forEach(function (monthInfo) {
       renderMonth(container, monthInfo, markerMap, skippedDayMap);
@@ -285,6 +376,9 @@
     buildMarkerMap: buildMarkerMap,
     buildSkippedDayMap: buildSkippedDayMap,
     holidayMessage: holidayMessage,
+    isInsideDeliveryWindow: isInsideDeliveryWindow,
+    mondayFirstColumn: mondayFirstColumn,
+    tooltipPositionForColumn: tooltipPositionForColumn,
     monthSequence: monthSequence,
     renderCalendar: renderCalendar,
     shortStatusLabel: shortStatusLabel,

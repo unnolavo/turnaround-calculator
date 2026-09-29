@@ -13,7 +13,7 @@
           <p class="eyebrow">Internal tool</p>
           <h1>Turnaround Estimator</h1>
         </div>
-        <p class="header-note">Forward-plan production and delivery dates from four inputs.</p>
+        <p class="header-note">Estimate production, handoff and delivery dates from five fast inputs.</p>
       </header>
 
       <section class="tool-layout" aria-label="Turnaround estimate controls and result">
@@ -28,9 +28,18 @@
             <input id="order-date" name="order-date" type="date" required>
           </div>
 
-          <div class="field" data-form-row="2">
+          <div class="field production-days-field" data-form-row="2">
             <label for="production-days">Production days</label>
-            <input id="production-days" name="production-days" type="number" min="1" step="1" inputmode="numeric" value="1" required aria-describedby="production-days-error">
+            <div class="production-days-control">
+              <div class="production-quick-group" aria-label="Common production day values">
+                <button type="button" class="production-quick" data-production-days="1" aria-pressed="true">1</button>
+                <button type="button" class="production-quick" data-production-days="2" aria-pressed="false">2</button>
+                <button type="button" class="production-quick" data-production-days="3" aria-pressed="false">3</button>
+                <button type="button" class="production-quick" data-production-days="4" aria-pressed="false">4</button>
+                <button type="button" class="production-quick" data-production-days="5" aria-pressed="false">5</button>
+              </div>
+              <input id="production-days" name="production-days" type="number" min="1" max="20" step="1" inputmode="numeric" value="1" required aria-describedby="production-days-error">
+            </div>
             <p id="production-days-error" class="field-error" hidden></p>
           </div>
 
@@ -38,19 +47,36 @@
             <label for="shipping-method">Shipping method</label>
             <select id="shipping-method" name="shipping-method"></select>
           </div>
+
+          <div class="field" data-form-row="3">
+            <label for="shipment-timing">Shipment timing</label>
+            <select id="shipment-timing" name="shipment-timing"></select>
+          </div>
         </form>
 
         <section class="result-panel" aria-labelledby="result-heading" aria-live="polite">
-          <p class="eyebrow">Expected delivery</p>
-          <h2 id="result-heading">Enter order details</h2>
-          <p id="result-detail" class="result-detail">The projection updates as inputs change.</p>
-          <p id="config-note" class="config-note" hidden></p>
+          <div class="result-main">
+            <p class="eyebrow">Expected delivery</p>
+            <div id="copy-formats" class="result-estimates" aria-label="Copy delivery estimate formats">
+              <div class="result-estimate-row result-estimate-row-main">
+                <h2 id="result-heading">Enter order details</h2>
+                <button type="button" class="copy-button result-copy-button" data-copy-target="result-heading" aria-label="Copy written-out delivery estimate">Copy</button>
+              </div>
+              <div id="numeric-estimate-row" class="result-estimate-row result-estimate-row-numeric" hidden>
+                <span id="copy-numeric" class="numeric-estimate"></span>
+                <button type="button" class="copy-button result-copy-button" data-copy-target="copy-numeric" aria-label="Copy numeric delivery estimate">Copy</button>
+              </div>
+            </div>
+            <p id="result-detail" class="result-detail" hidden></p>
+            <p id="config-note" class="config-note" hidden></p>
+          </div>
         </section>
       </section>
 
       <section class="legend" aria-label="Calendar legend">
         <span class="legend-item legend-order">Order placed</span>
         <span class="legend-item legend-production">Production</span>
+        <span class="legend-item legend-pickup">Pick-Up Day</span>
         <span class="legend-item legend-transit">Transit</span>
         <span class="legend-item legend-delivery">Expected delivery</span>
       </section>

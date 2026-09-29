@@ -17,6 +17,33 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function (dateUtils, holidays) {
   "use strict";
 
+  var SHIPMENT_TIMING_OPTIONS = {
+    unknown: {
+      id: "unknown",
+      label: "Not Shipped Yet / Unknown",
+      assumption: "Conservative estimate - pickup occurs on the next eligible pickup day",
+      allowsSameDayPickup: false
+    },
+    "queued-before-cutoff": {
+      id: "queued-before-cutoff",
+      label: "Queued before 4 PM",
+      assumption: "Same-day pickup - queue date is the pickup day",
+      allowsSameDayPickup: true
+    },
+    "queued-after-cutoff": {
+      id: "queued-after-cutoff",
+      label: "Queued after 4 PM",
+      assumption: "After-cutoff pickup - pickup occurs on the next eligible pickup day",
+      allowsSameDayPickup: false
+    }
+  };
+
+  var SHIPMENT_TIMING_CHOICES = [
+    SHIPMENT_TIMING_OPTIONS.unknown,
+    SHIPMENT_TIMING_OPTIONS["queued-before-cutoff"],
+    SHIPMENT_TIMING_OPTIONS["queued-after-cutoff"]
+  ];
+
   function normalizePositiveWholeNumber(value, label) {
     if (typeof value === "string" && !/^\d+$/.test(value.trim())) {
       throw new RangeError(label + " must be a positive whole number.");
@@ -28,6 +55,27 @@
     }
 
     return number;
+  }
+
+  function normalizeProductionDays(value) {
+    var days = normalizePositiveWholeNumber(value, "Production days");
+    if (days > 20) {
+      throw new RangeError("Production days must be between 1 and 20.");
+    }
+    return days;
+  }
+
+  function normalizeShipmentTiming(value) {
+    if (value === undefined || value === null || value === "") {
+      return SHIPMENT_TIMING_OPTIONS.unknown;
+    }
+
+    var timing = SHIPMENT_TIMING_OPTIONS[value];
+    if (!timing) {
+      throw new RangeError("Shipment timing must be one of the approved options.");
+    }
+
+    return timing;
   }
 
   function normalizeTransitRange(shippingMethod) {
@@ -84,6 +132,27 @@
     return null;
   }
 
+  function pickupSkipReason(isoDate) {
+    if (dateUtils.isWeekend(isoDate)) {
+      return {
+        type: "weekend",
+        message: "Weekend - pickup skipped."
+      };
+    }
+
+    var holiday = holidays.getObservedFederalHoliday(isoDate);
+    if (holiday) {
+      return {
+        type: "holiday",
+        holidayName: holiday.name,
+        holiday: holiday,
+        message: holidays.describeObservedFederalHoliday(holiday) + " - pickup skipped."
+      };
+    }
+
+    return null;
+  }
+
   function transitSkipReason(isoDate, options) {
     if (dateUtils.isSunday(isoDate)) {
       return {
@@ -116,7 +185,7 @@
 
   function calculateProduction(orderDate, productionDays) {
     dateUtils.parseIsoDate(orderDate);
-    var targetDays = normalizePositiveWholeNumber(productionDays, "Production days");
+    var targetDays = normalizeProductionDays(productionDays);
     var cursor = dateUtils.addCalendarDays(orderDate, 1);
     var countedDays = 0;
     var productionDates = [];
@@ -149,14 +218,38 @@
     };
   }
 
-  function calculateTransit(queueForShipmentDate, transitRange, domain, shippingMethod) {
+  function calculatePickup(queueForShipmentDate, shipmentTiming) {
     dateUtils.parseIsoDate(queueForShipmentDate);
+    var timing = normalizeShipmentTiming(shipmentTiming);
+    var cursor = timing.allowsSameDayPickup ? queueForShipmentDate : dateUtils.addCalendarDays(queueForShipmentDate, 1);
+    var skippedDays = [];
+    var skipReason = pickupSkipReason(cursor);
+
+    while (skipReason) {
+      skippedDays.push({
+        date: cursor,
+        stage: "pickup",
+        reason: skipReason
+      });
+      cursor = dateUtils.addCalendarDays(cursor, 1);
+      skipReason = pickupSkipReason(cursor);
+    }
+
+    return {
+      pickupDate: cursor,
+      pickupType: cursor === queueForShipmentDate ? "same-day" : "next-day",
+      skippedDays: skippedDays
+    };
+  }
+
+  function calculateTransit(pickupDate, transitRange, domain, shippingMethod) {
+    dateUtils.parseIsoDate(pickupDate);
     var range = transitRange ? normalizeTransitRange({ transitDays: transitRange }) : normalizeTransitRange(shippingMethod);
     var options = {
       countsSaturdayTransit: methodCountsSaturdayTransit(domain, shippingMethod),
       skipsUsTransitHolidays: domainSkipsUsTransitHolidays(domain)
     };
-    var cursor = dateUtils.addCalendarDays(queueForShipmentDate, 1);
+    var cursor = dateUtils.addCalendarDays(pickupDate, 1);
     var countedDays = 0;
     var transitDates = [];
     var skippedDays = [];
@@ -191,6 +284,7 @@
 
     return {
       transitDates: transitDates,
+      transitBeginsDate: transitDates[0],
       expectedDeliveryStartDate: expectedDeliveryStartDate,
       expectedDeliveryEndDate: expectedDeliveryEndDate,
       expectedDeliveryDate: range.isRange ? null : expectedDeliveryEndDate,
@@ -204,9 +298,10 @@
     }
 
     var orderDate = input.orderDate;
-    var productionDays = normalizePositiveWholeNumber(input.productionDays, "Production days");
+    var productionDays = normalizeProductionDays(input.productionDays);
     var domain = input.domain;
     var shippingMethod = input.shippingMethod;
+    var shipmentTiming = normalizeShipmentTiming(input.shipmentTiming);
 
     if (!domain) {
       throw new TypeError("Domain is required.");
@@ -219,7 +314,8 @@
 
     var transitRange = normalizeTransitRange(shippingMethod);
     var production = calculateProduction(orderDate, productionDays);
-    var transit = calculateTransit(production.queueForShipmentDate, transitRange, domain, shippingMethod);
+    var pickup = calculatePickup(production.queueForShipmentDate, shipmentTiming.id);
+    var transit = calculateTransit(pickup.pickupDate, transitRange, domain, shippingMethod);
 
     return {
       orderDate: orderDate,
@@ -228,25 +324,36 @@
       shippingMethodId: shippingMethod.id,
       shippingMethodLabel: shippingMethod.label,
       productionDays: productionDays,
+      shipmentTiming: shipmentTiming.id,
+      shipmentTimingLabel: shipmentTiming.label,
+      shipmentTimingAssumption: shipmentTiming.assumption,
       transitRange: transitRange,
       productionStartDate: production.productionStartDate,
       productionDates: production.productionDates,
       queueForShipmentDate: production.queueForShipmentDate,
+      pickupDate: pickup.pickupDate,
+      pickupType: pickup.pickupType,
+      transitBeginsDate: transit.transitBeginsDate,
       transitDates: transit.transitDates,
       expectedDeliveryStartDate: transit.expectedDeliveryStartDate,
       expectedDeliveryEndDate: transit.expectedDeliveryEndDate,
       expectedDeliveryDate: transit.expectedDeliveryDate,
-      skippedDays: production.skippedDays.concat(transit.skippedDays)
+      skippedDays: production.skippedDays.concat(pickup.skippedDays, transit.skippedDays)
     };
   }
 
   return {
+    SHIPMENT_TIMING_CHOICES: SHIPMENT_TIMING_CHOICES,
     calculateEstimate: calculateEstimate,
+    calculatePickup: calculatePickup,
     calculateProduction: calculateProduction,
     calculateTransit: calculateTransit,
     domainSkipsUsTransitHolidays: domainSkipsUsTransitHolidays,
     methodCountsSaturdayTransit: methodCountsSaturdayTransit,
+    normalizeProductionDays: normalizeProductionDays,
+    normalizeShipmentTiming: normalizeShipmentTiming,
     normalizeTransitRange: normalizeTransitRange,
+    pickupSkipReason: pickupSkipReason,
     productionSkipReason: productionSkipReason,
     transitSkipReason: transitSkipReason
   };

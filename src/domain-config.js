@@ -45,7 +45,11 @@
     );
   }
 
-  function makeInternationalDomain(id, label, durations) {
+  function zazzleLabel(label, zazzleDomain) {
+    return label + " \u2014 " + zazzleDomain;
+  }
+
+  function makeInternationalDomain(id, label, zazzleDomain, durations) {
     var methods = [];
 
     if (durations.slow) {
@@ -60,7 +64,9 @@
 
     return {
       id: id,
-      label: label,
+      label: zazzleLabel(label, zazzleDomain),
+      zazzleDomain: zazzleDomain,
+      numericDateFormat: "dmy",
       transitHolidayCalendar: "none",
       shippingMethods: methods
     };
@@ -68,7 +74,9 @@
 
   var usDomain = {
     id: "us",
-    label: "US",
+    label: zazzleLabel("US", "Zazzle.com"),
+    zazzleDomain: "Zazzle.com",
+    numericDateFormat: "mdy",
     transitHolidayCalendar: "us-federal",
     shippingMethods: [
       method("standard", "Standard Shipping", range(4, 7), false),
@@ -79,86 +87,93 @@
     ]
   };
 
-  var ukDomain = makeInternationalDomain("uk", "UK", {
+  var ukDomain = makeInternationalDomain("uk", "UK", "Zazzle.co.uk", {
     slow: range(9, 18),
-    standard: range(5, 8),
+    standard: range(4, 7),
     expedited: range(2, 4)
   });
 
   var domains = [
     usDomain,
     ukDomain,
-    makeInternationalDomain("ca", "CA", {
+    makeInternationalDomain("ca", "CA", "Zazzle.ca", {
       slow: range(9, 18),
       standard: range(5, 8),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("au", "AU", {
+    makeInternationalDomain("au", "AU", "Zazzle.com.au", {
       slow: range(10, 18),
-      standard: range(5, 9),
+      standard: range(7, 10),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("nz", "NZ", {
+    makeInternationalDomain("nz", "NZ", "Zazzle.co.nz", {
       slow: range(11, 20),
       standard: range(7, 11),
       expedited: range(4, 6)
     }),
-    makeInternationalDomain("jp", "JP", {
-      standard: range(5, 9),
+    makeInternationalDomain("at", "AT", "Zazzle.at", {
+      slow: range(9, 18),
+      standard: range(7, 10),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("br", "BR", {
+    makeInternationalDomain("jp", "JP", "Zazzle.co.jp", {
+      standard: range(7, 10),
+      expedited: range(5, 6)
+    }),
+    makeInternationalDomain("br", "BR", "Zazzle.com.br", {
       standard: range(7, 12),
       expedited: range(4, 6)
     }),
-    makeInternationalDomain("pt", "PT", {
+    makeInternationalDomain("pt", "PT", "Zazzle.pt", {
       slow: range(9, 18),
-      standard: range(6, 8),
+      standard: range(5, 9),
       expedited: range(2, 5)
     }),
-    makeInternationalDomain("fr", "FR", {
-      slow: range(9, 18),
-      standard: range(7, 10),
-      expedited: range(3, 5)
-    }),
-    makeInternationalDomain("de", "DE", {
-      slow: range(9, 18),
-      standard: range(7, 10),
-      expedited: range(3, 5)
-    }),
-    makeInternationalDomain("it", "IT", {
-      slow: range(9, 18),
-      standard: range(7, 10),
-      expedited: range(3, 5)
-    }),
-    makeInternationalDomain("ch", "CH", {
-      slow: range(9, 18),
-      standard: range(7, 10),
-      expedited: range(3, 5)
-    }),
-    makeInternationalDomain("nl", "NL", {
+    makeInternationalDomain("fr", "FR", "Zazzle.fr", {
       slow: range(9, 18),
       standard: range(5, 9),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("be", "BE", {
+    makeInternationalDomain("de", "DE", "Zazzle.de", {
       slow: range(9, 18),
       standard: range(5, 9),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("es", "ES", {
-      slow: range(10, 18),
-      standard: range(5, 10),
+    makeInternationalDomain("it", "IT", "Zazzle.it", {
+      slow: range(9, 18),
+      standard: range(7, 10),
       expedited: range(3, 5)
     }),
-    makeInternationalDomain("se", "SE", {
-      slow: range(10, 18),
+    makeInternationalDomain("ch", "CH", "Zazzle.ch", {
+      slow: range(9, 18),
       standard: range(7, 10),
+      expedited: range(3, 5)
+    }),
+    makeInternationalDomain("nl", "NL", "Zazzle.nl", {
+      slow: range(9, 18),
+      standard: range(5, 9),
+      expedited: range(3, 5)
+    }),
+    makeInternationalDomain("be", "BE", "Zazzle.be", {
+      slow: range(9, 18),
+      standard: range(5, 9),
+      expedited: range(3, 5)
+    }),
+    makeInternationalDomain("es", "ES", "Zazzle.es", {
+      slow: range(10, 18),
+      standard: range(5, 9),
+      expedited: range(3, 5)
+    }),
+    makeInternationalDomain("se", "SE", "Zazzle.se", {
+      slow: range(10, 18),
+      standard: range(5, 9),
       expedited: range(3, 5)
     }),
     {
       id: "rest-of-europe",
-      label: "Rest of Europe",
+      label: zazzleLabel("Rest of Europe", "Zazzle.co.uk"),
+      zazzleDomain: "Zazzle.co.uk",
+      numericDateFormat: "dmy",
       transitHolidayCalendar: "none",
       shippingMethods: ukDomain.shippingMethods.map(cloneMethod)
     }
@@ -201,6 +216,12 @@
     allDomains.forEach(function (domain) {
       if (!domain.id || !domain.label) {
         errors.push("Every domain must have an id and label.");
+      }
+      if (!domain.zazzleDomain) {
+        errors.push(domain.id + " must define zazzleDomain.");
+      }
+      if (["dmy", "mdy"].indexOf(domain.numericDateFormat) === -1) {
+        errors.push(domain.id + " must define numericDateFormat as dmy or mdy.");
       }
       if (domainIds[domain.id]) {
         errors.push("Duplicate domain id " + domain.id + ".");
